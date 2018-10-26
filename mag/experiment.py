@@ -2,6 +2,7 @@ import os
 import sys
 import subprocess
 import datetime
+import tempfile
 
 from mag.config import Config
 
@@ -10,7 +11,7 @@ class Experiment:
 
     def __init__(self, config=None, resume_from=None,
                  logfile_name="log", experiments_dir="./experiments",
-                 implicit_resuming=False):
+                 implicit_resuming=False, experiment_prefix=''):
         """Create a new Experiment instance.
 
         Args:
@@ -51,28 +52,21 @@ class Experiment:
                     "a dictonary or an instance of mag.config.Config"
                 )
 
-            if os.path.isdir(self.experiment_dir):
-                if not implicit_resuming:
-                    raise ValueError(
-                        "Experiment with identifier {identifier} "
-                        "already exists. Set `resume_from` to the corresponding "
-                        "identifier (directory name) {directory} or delete it "
-                        "manually and then rerun the code.".format(
-                            identifier=self.config.identifier,
-                            directory=self.config.identifier
-                        )
-                    )
-            else:
-                self._makedir()
-                self._save_config()
-                self._save_git_commit_hash()
-                self._save_command()
+            if experiment_prefix != '':
+                experiment_prefix += '.'
+            experiment_dir = tempfile.mkdtemp(prefix=experiment_prefix, dir=self.experiments_dir)
+            self.identifier = os.path.basename(experiment_dir)
+
+            self._save_config()
+            self._save_git_commit_hash()
+            self._save_command()
 
         elif resume_from is not None and config is None:
+            experiment_dir = os.path.join(experiments_dir, resume_from)
+            self.identifier = os.path.basename(experiment_dir)
 
-            self.config = Config.from_json(
-                os.path.join(experiments_dir, resume_from, "config.json")
-            )
+            self.config = Config.from_json(self.config_file)
+
             self._register_existing_directories()
 
         elif config is not None and resume_from is not None:
@@ -106,7 +100,7 @@ class Experiment:
 
     @property
     def experiment_dir(self):
-        return os.path.join(self.experiments_dir, self.config.identifier)
+        return os.path.join(self.experiments_dir, self.identifier)
 
     @property
     def config_file(self):
